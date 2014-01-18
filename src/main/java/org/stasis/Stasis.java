@@ -33,14 +33,86 @@ public class Stasis {
 
     private volatile ReferenceProviderFactory refsFactory = new IdentityReferenceProviderFactory();
 
-    public void setReferenceProviderFactory(ReferenceProviderFactory refsFactory) {
-        this.refsFactory = refsFactory;
+    private Stasis() {
     }
 
-    public synchronized <A> void register(Class<A> type, Serializer<? super A> serializer) {
-        SerializerEntry entry = new SerializerEntry(type, serializer, serializers.size());
-        serializers.add(entry);
+    public static Stasis create() {
+        return new Stasis();
+    }
+
+    public Stasis registerPrimitives(boolean registerString) {
+        register(boolean.class, Serializers.forBoolean());
+        register(char.class, Serializers.forChar());
+        register(byte.class, Serializers.forByte());
+        register(short.class, Serializers.forShort());
+        register(int.class, Serializers.forInt());
+        register(long.class, Serializers.forLong());
+        register(float.class, Serializers.forFloat());
+        register(double.class, Serializers.forDouble());
+        if (registerString) {
+            register(String.class, Serializers.forString());
+        }
+        return this;
+    }
+
+    public Stasis registerBoxedPrimitives(boolean registerString) {
+        register(Boolean.class, Serializers.forBoolean());
+        register(Character.class, Serializers.forChar());
+        register(Byte.class, Serializers.forByte());
+        register(Short.class, Serializers.forShort());
+        register(Integer.class, Serializers.forInt());
+        register(Long.class, Serializers.forLong());
+        register(Float.class, Serializers.forFloat());
+        register(Double.class, Serializers.forDouble());
+        if (registerString) {
+            register(String.class, Serializers.forString());
+        }
+        return this;
+    }
+
+    public Stasis registerPrimitiveArrays(boolean registerStringArray) {
+        register(char[].class, Serializers.forCharArray());
+        register(byte[].class, Serializers.forByteArray());
+        register(short[].class, Serializers.forShortArray());
+        register(int[].class, Serializers.forIntArray());
+        register(long[].class, Serializers.forLongArray());
+        register(float[].class, Serializers.forFloatArray());
+        register(double[].class, Serializers.forDoubleArray());
+        if (registerStringArray) {
+            register(String[].class, Serializers.forArray(String.class, Serializers.forString()));
+        }
+        return this;
+    }
+
+    public Stasis registerBoxedPrimitiveArrays(boolean registerStringArray) {
+        register(Character[].class, Serializers.forArray(Character.class, Serializers.forChar()));
+        register(Byte[].class, Serializers.forArray(Byte.class, Serializers.forByte()));
+        register(Short[].class, Serializers.forArray(Short.class, Serializers.forShort()));
+        register(Integer[].class, Serializers.forArray(Integer.class, Serializers.forInt()));
+        register(Long[].class, Serializers.forArray(Long.class, Serializers.forLong()));
+        register(Float[].class, Serializers.forArray(Float.class, Serializers.forFloat()));
+        register(Double[].class, Serializers.forArray(Double.class, Serializers.forDouble()));
+        if (registerStringArray) {
+            register(String[].class, Serializers.forArray(String.class, Serializers.forString()));
+        }
+        return this;
+    }
+
+    public Stasis setReferenceProviderFactory(ReferenceProviderFactory refsFactory) {
+        this.refsFactory = refsFactory;
+        return this;
+    }
+
+    public synchronized <A> Stasis register(Class<A> type, Serializer<? super A> serializer) {
+        SerializerEntry existingEntry = typeToSerializer.get(type);
+        SerializerEntry entry = new SerializerEntry(type, serializer, existingEntry == null ? serializers.size() : existingEntry.index);
+        if (existingEntry == null) {
+            serializers.add(entry);
+        } else {
+            serializers.set(entry.index, entry);
+        }
         typeToSerializer.put(type, entry);
+        return this;
     }
 
     @SuppressWarnings("unchecked")
@@ -114,7 +186,7 @@ public class Stasis {
                 return refs.objectFor(ref);
             } else {
                 int serializerIndex = readSerializerIndex(header);
-                Serializer<?> serializer = serializers.get(serializerIndex).serializer;
+                Serializer<?> serializer = serializerFor(serializerIndex);
                 return read(in, serializer);
             }
         }
@@ -155,6 +227,13 @@ public class Stasis {
         } else {
             return entry;
         }
+    }
+
+    private Serializer<?> serializerFor(int serializerIndex) {
+        if (serializerIndex >= serializers.size()) {
+            throw new IllegalStateException("Serializer for index " + serializerIndex + " not found.");
+        }
+        return serializers.get(serializerIndex).serializer;
     }
 
     private boolean noRefFound(int ref) {
