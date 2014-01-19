@@ -40,6 +40,11 @@ public class Stasis {
         return new Stasis();
     }
 
+    public Stasis registerNull() {
+        register(Void.class, Serializers.forNull());
+        return this;
+    }
+
     public Stasis registerPrimitives(boolean registerString) {
         register(boolean.class, Serializers.forBoolean());
         register(char.class, Serializers.forChar());
@@ -98,6 +103,11 @@ public class Stasis {
         return this;
     }
 
+    public Stasis registerObjectArray() {
+        register(Object[].class, Serializers.forObjectArray());
+        return this;
+    }
+
     public Stasis setReferenceProviderFactory(ReferenceProviderFactory refsFactory) {
         this.refsFactory = refsFactory;
         return this;
@@ -140,7 +150,7 @@ public class Stasis {
         public void writeTypeAndObject(Object object, DataOutputStream out) throws IOException {
             int ref = refs.referenceFor(object);
             if (noRefFound(ref)) {
-                SerializerEntry entry = serializerEntryFor(object.getClass());
+                SerializerEntry entry = serializerEntryFor(classOf(object));
                 int serializerIndex = entry.index;
                 Serializer<Object> serializer = (Serializer<Object>) entry.serializer;
                 writeObject(object, out, serializerIndex, serializer);
@@ -160,6 +170,10 @@ public class Stasis {
             } else {
                 writeRef(out, ref);
             }
+        }
+
+        private Class<? extends Object> classOf(Object object) {
+            return object == null ? Void.class : object.getClass();
         }
 
         private <A> void writeObject(A object, DataOutputStream out, int headerData, Serializer<A> serializer) throws IOException {

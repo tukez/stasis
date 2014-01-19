@@ -10,6 +10,19 @@ import org.stasis.Stasis.Writer;
 
 public class Serializers {
 
+    private static final Serializer<Void> NULL = new Serializer<Void>() {
+
+        @Override
+        public void write(Writer writer, DataOutputStream out, Void value) throws IOException {
+        }
+
+        @Override
+        public Void read(Reader reader, DataInputStream in) throws IOException {
+            return null;
+        }
+
+    };
+
     private static final Serializer<Boolean> BOOLEAN = new Serializer<Boolean>() {
 
         @Override
@@ -270,6 +283,32 @@ public class Serializers {
 
     }
 
+    private static final Serializer<Object[]> OBJECT_ARRAY = new Serializer<Object[]>() {
+
+        @Override
+        public void write(Writer writer, DataOutputStream out, Object[] array) throws IOException {
+            Serializers.forInt().write(writer, out, array.length);
+            for (Object value : array) {
+                writer.writeTypeAndObject(value, out);
+            }
+        }
+
+        @Override
+        public Object[] read(Reader reader, DataInputStream in) throws IOException {
+            int size = Serializers.forInt().read(reader, in);
+            Object[] array = new Object[size];
+            for (int i = 0; i < size; i++) {
+                array[i] = reader.readTypeAndObject(in);
+            }
+            return array;
+        }
+
+    };
+
+    public static Serializer<Void> forNull() {
+        return NULL;
+    }
+
     public static Serializer<Boolean> forBoolean() {
         return BOOLEAN;
     }
@@ -332,6 +371,10 @@ public class Serializers {
 
     public static Serializer<double[]> forDoubleArray() {
         return DOUBLE_ARRAY;
+    }
+
+    public static Serializer<Object[]> forObjectArray() {
+        return OBJECT_ARRAY;
     }
 
     public static <A> Serializer<A[]> forArray(Class<A> type, Serializer<A> serializer) {

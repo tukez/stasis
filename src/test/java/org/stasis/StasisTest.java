@@ -19,8 +19,9 @@ public class StasisTest {
 
     private ByteArrayOutputStream baos = new ByteArrayOutputStream();
     private DataOutputStream out = new DataOutputStream(baos);
-    private Stasis stasis = Stasis.create().registerPrimitives(true).registerBoxedPrimitives(false).registerPrimitiveArrays(true)
-                                  .registerBoxedPrimitiveArrays(false);
+    private Stasis stasis = Stasis.create().registerNull().registerPrimitives(true).registerBoxedPrimitives(false)
+                                  .registerPrimitiveArrays(true).registerBoxedPrimitiveArrays(false).registerObjectArray()
+                                  .register(List.class, new ListSerializer());
     private Stasis.Writer writer = stasis.newWriter();
     private Stasis.Reader reader = stasis.newReader();
 
@@ -113,6 +114,27 @@ public class StasisTest {
     }
 
     @Test
+    public void nullValuesWorkWhenSavingType() throws IOException {
+        writer.writeTypeAndObject(Arrays.asList("obj1", null, "obj2"), out);
+        writer.writeTypeAndObject(null, out);
+        writer.writeTypeAndObject(Arrays.asList(null, null, "obj2"), out);
+
+        DataInputStream in = in();
+
+        Assert.assertEquals(Arrays.asList("obj1", null, "obj2"), reader.readTypeAndObject(in));
+        Assert.assertEquals(null, reader.readTypeAndObject(in));
+        Assert.assertEquals(Arrays.asList(null, null, "obj2"), reader.readTypeAndObject(in));
+    }
+
+    @Test
+    public void objectArray() throws IOException {
+        writer.writeTypeAndObject(new Object[] { "string", null, new Object[] { 2, new int[] { 3, 4 } } }, out);
+        DataInputStream in = in();
+        Assert.assertArrayEquals(new Object[] { "string", null, new Object[] { 2, new int[] { 3, 4 } } },
+                                 (Object[]) reader.readTypeAndObject(in));
+    }
+
+    @Test
     public void objectsAreSerializedOnlyOnceAndReferencedAfterwards() throws IOException {
         writer.writeObject("string", out, String.class);
         int size1 = baos.toByteArray().length;
@@ -125,8 +147,6 @@ public class StasisTest {
     @SuppressWarnings("unchecked")
     @Test
     public void writeObjectWorksWithSupertypeSerializer() throws IOException {
-        stasis.register(List.class, new ListSerializer());
-
         ArrayList<Object> list1 = new ArrayList<>(Arrays.asList(1, "2", 3));
         writer.writeTypeAndObject(list1, out);
 
@@ -141,7 +161,6 @@ public class StasisTest {
     @Test
     public void referencesWorksInNestedObjects() throws IOException {
         stasis.setReferenceProviderFactory(new HashReferenceProviderFactory());
-        stasis.register(List.class, new ListSerializer());
         writer = stasis.newWriter();
 
         List<List<String>> list1 = new ArrayList<>();
@@ -187,7 +206,6 @@ public class StasisTest {
             }
 
         });
-        writer = stasis.newWriter();
 
         writer.writeTypeAndObject("object", out);
         DataInputStream in = in();
