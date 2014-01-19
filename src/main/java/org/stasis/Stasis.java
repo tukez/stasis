@@ -143,9 +143,7 @@ public class Stasis {
                 SerializerEntry entry = serializerEntryFor(object.getClass());
                 int serializerIndex = entry.index;
                 Serializer<Object> serializer = (Serializer<Object>) entry.serializer;
-
-                Varint.writeUnsignedVarInt(toHeader(serializerIndex, OBJECT), out);
-                serializer.write(this, out, object);
+                writeObject(object, out, serializerIndex, serializer);
             } else {
                 writeRef(out, ref);
             }
@@ -158,11 +156,16 @@ public class Stasis {
         public <A> void writeObject(A object, DataOutputStream out, Serializer<? super A> serializer) throws IOException {
             int ref = refs.referenceFor(object);
             if (noRefFound(ref)) {
-                Varint.writeUnsignedVarInt(toHeader(0, OBJECT), out);
-                serializer.write(this, out, object);
+                writeObject(object, out, 0, serializer);
             } else {
                 writeRef(out, ref);
             }
+        }
+
+        private <A> void writeObject(A object, DataOutputStream out, int headerData, Serializer<A> serializer) throws IOException {
+            Varint.writeUnsignedVarInt(toHeader(headerData, OBJECT), out);
+            serializer.write(this, out, object);
+            refs.registerObject(object);
         }
 
         private void writeRef(DataOutputStream out, int ref) throws IOException {
@@ -182,8 +185,7 @@ public class Stasis {
         public Object readTypeAndObject(DataInputStream in) throws IOException {
             int header = Varint.readUnsignedVarInt(in);
             if (isRef(header)) {
-                int ref = readRef(header);
-                return refs.objectFor(ref);
+                return readFromRef(header);
             } else {
                 int serializerIndex = readSerializerIndex(header);
                 Serializer<?> serializer = serializerFor(serializerIndex);
@@ -196,15 +198,19 @@ public class Stasis {
             return readObject(in, (Serializer<A>) serializerFor(type));
         }
 
-        @SuppressWarnings("unchecked")
         public <A> A readObject(DataInputStream in, Serializer<A> serializer) throws IOException {
             int header = Varint.readUnsignedVarInt(in);
             if (isRef(header)) {
-                int ref = readRef(header);
-                return (A) refs.objectFor(ref);
+                return readFromRef(header);
             } else {
                 return read(in, serializer);
             }
+        }
+
+        @SuppressWarnings("unchecked")
+        private <A> A readFromRef(int header) {
+            int ref = readRef(header);
+            return (A) refs.objectFor(ref);
         }
 
         private <A> A read(DataInputStream in, Serializer<A> serializer) throws IOException {

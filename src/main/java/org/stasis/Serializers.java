@@ -154,38 +154,90 @@ public class Serializers {
 
     };
 
-    private static class PrimitiveArraySerializer<A, B> implements Serializer<A> {
+    private static abstract class PrimitiveArraySerializer<A> implements Serializer<A> {
 
-        private final Class<B> type;
-        private final Serializer<B> serializer;
-
-        public PrimitiveArraySerializer(Class<B> type, Serializer<B> serializer) {
-            this.type = type;
-            this.serializer = serializer;
-        }
+        private final Serializer<Object> serializer;
 
         @SuppressWarnings("unchecked")
+        public PrimitiveArraySerializer(Serializer<?> serializer) {
+            this.serializer = (Serializer<Object>) serializer;
+        }
+
         @Override
-        public void write(Writer writer, DataOutputStream out, A array) throws IOException {
+        public final void write(Writer writer, DataOutputStream out, A array) throws IOException {
             int size = Array.getLength(array);
             Serializers.forInt().write(writer, out, size);
             for (int i = 0; i < size; i++) {
-                serializer.write(writer, out, (B) Array.get(array, i));
+                serializer.write(writer, out, Array.get(array, i));
             }
         }
 
-        @SuppressWarnings("unchecked")
         @Override
-        public A read(Reader reader, DataInputStream in) throws IOException {
+        public final A read(Reader reader, DataInputStream in) throws IOException {
             int size = Serializers.forInt().read(reader, in);
-            B[] array = (B[]) Array.newInstance(type, size);
+            A array = newArray(size);
             for (int i = 0; i < size; i++) {
-                array[i] = serializer.read(reader, in);
+                Array.set(array, i, serializer.read(reader, in));
             }
-            return (A) array;
+            return array;
         }
 
+        protected abstract A newArray(int size);
     }
+
+    private static final Serializer<char[]> CHAR_ARRAY = new PrimitiveArraySerializer<char[]>(forChar()) {
+
+        @Override
+        protected char[] newArray(int size) {
+            return new char[size];
+        }
+
+    };
+
+    private static final Serializer<short[]> SHORT_ARRAY = new PrimitiveArraySerializer<short[]>(forShort()) {
+
+        @Override
+        protected short[] newArray(int size) {
+            return new short[size];
+        }
+
+    };
+
+    private static final Serializer<int[]> INT_ARRAY = new PrimitiveArraySerializer<int[]>(forInt()) {
+
+        @Override
+        protected int[] newArray(int size) {
+            return new int[size];
+        }
+
+    };
+
+    private static final Serializer<long[]> LONG_ARRAY = new PrimitiveArraySerializer<long[]>(forLong()) {
+
+        @Override
+        protected long[] newArray(int size) {
+            return new long[size];
+        }
+
+    };
+
+    private static final Serializer<float[]> FLOAT_ARRAY = new PrimitiveArraySerializer<float[]>(forFloat()) {
+
+        @Override
+        protected float[] newArray(int size) {
+            return new float[size];
+        }
+
+    };
+
+    private static final Serializer<double[]> DOUBLE_ARRAY = new PrimitiveArraySerializer<double[]>(forDouble()) {
+
+        @Override
+        protected double[] newArray(int size) {
+            return new double[size];
+        }
+
+    };
 
     private static class ArraySerializer<A> implements Serializer<A[]> {
 
@@ -259,34 +311,31 @@ public class Serializers {
     }
 
     public static Serializer<char[]> forCharArray() {
-        return forPrimitiveArray(char.class, forChar());
+        return CHAR_ARRAY;
     }
 
     public static Serializer<short[]> forShortArray() {
-        return forPrimitiveArray(short.class, forShort());
+        return SHORT_ARRAY;
     }
 
     public static Serializer<int[]> forIntArray() {
-        return forPrimitiveArray(int.class, forInt());
+        return INT_ARRAY;
     }
 
     public static Serializer<long[]> forLongArray() {
-        return forPrimitiveArray(long.class, forLong());
+        return LONG_ARRAY;
     }
 
     public static Serializer<float[]> forFloatArray() {
-        return forPrimitiveArray(float.class, forFloat());
+        return FLOAT_ARRAY;
     }
 
     public static Serializer<double[]> forDoubleArray() {
-        return forPrimitiveArray(double.class, forDouble());
+        return DOUBLE_ARRAY;
     }
 
     public static <A> Serializer<A[]> forArray(Class<A> type, Serializer<A> serializer) {
         return new ArraySerializer<>(type, serializer);
     }
 
-    private static <A, B> Serializer<A> forPrimitiveArray(Class<B> type, Serializer<B> serializer) {
-        return new PrimitiveArraySerializer<>(type, serializer);
-    }
 }

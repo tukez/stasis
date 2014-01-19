@@ -12,12 +12,14 @@ public class HashReferenceWriterTest {
         int ref1 = writer.referenceFor("obj1");
         Assert.assertTrue("reference not found", ref1 < 0);
 
+        writer.registerObject("obj1");
         int ref2 = writer.referenceFor("obj1");
         Assert.assertEquals("reference found", 0, ref2);
 
         int ref3 = writer.referenceFor("obj2");
         Assert.assertTrue("reference not found", ref3 < 0);
 
+        writer.registerObject("obj2");
         int ref4 = writer.referenceFor("obj2");
         Assert.assertEquals("reference found", 1, ref4);
 
@@ -33,6 +35,7 @@ public class HashReferenceWriterTest {
         int ref1 = writer.referenceFor(obj1);
         Assert.assertTrue("reference not found", ref1 < 0);
 
+        writer.registerObject(obj1);
         int ref2 = writer.referenceFor(obj2);
         Assert.assertEquals("reference found", 0, ref2);
     }
