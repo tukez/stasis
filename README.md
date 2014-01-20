@@ -1,2 +1,2 @@
-asyncrpc
+stasis
 ========
