@@ -45,7 +45,7 @@ public class Stasis {
         return this;
     }
 
-    public Stasis registerPrimitives(boolean registerString) {
+    public Stasis registerPrimitives() {
         register(boolean.class, Serializers.forBoolean());
         register(char.class, Serializers.forChar());
         register(byte.class, Serializers.forByte());
@@ -54,13 +54,10 @@ public class Stasis {
         register(long.class, Serializers.forLong());
         register(float.class, Serializers.forFloat());
         register(double.class, Serializers.forDouble());
-        if (registerString) {
-            register(String.class, Serializers.forString());
-        }
         return this;
     }
 
-    public Stasis registerBoxedPrimitives(boolean registerString) {
+    public Stasis registerBoxedPrimitives() {
         register(Boolean.class, Serializers.forBoolean());
         register(Character.class, Serializers.forChar());
         register(Byte.class, Serializers.forByte());
@@ -69,13 +66,15 @@ public class Stasis {
         register(Long.class, Serializers.forLong());
         register(Float.class, Serializers.forFloat());
         register(Double.class, Serializers.forDouble());
-        if (registerString) {
-            register(String.class, Serializers.forString());
-        }
         return this;
     }
 
-    public Stasis registerPrimitiveArrays(boolean registerStringArray) {
+    public Stasis registerString() {
+        register(String.class, Serializers.forString());
+        return this;
+    }
+
+    public Stasis registerPrimitiveArrays() {
         register(char[].class, Serializers.forCharArray());
         register(byte[].class, Serializers.forByteArray());
         register(short[].class, Serializers.forShortArray());
@@ -83,13 +82,10 @@ public class Stasis {
         register(long[].class, Serializers.forLongArray());
         register(float[].class, Serializers.forFloatArray());
         register(double[].class, Serializers.forDoubleArray());
-        if (registerStringArray) {
-            register(String[].class, Serializers.forArray(String.class, Serializers.forString()));
-        }
         return this;
     }
 
-    public Stasis registerBoxedPrimitiveArrays(boolean registerStringArray) {
+    public Stasis registerBoxedPrimitiveArrays() {
         register(Character[].class, Serializers.forArray(Character.class, Serializers.forChar()));
         register(Byte[].class, Serializers.forArray(Byte.class, Serializers.forByte()));
         register(Short[].class, Serializers.forArray(Short.class, Serializers.forShort()));
@@ -97,9 +93,11 @@ public class Stasis {
         register(Long[].class, Serializers.forArray(Long.class, Serializers.forLong()));
         register(Float[].class, Serializers.forArray(Float.class, Serializers.forFloat()));
         register(Double[].class, Serializers.forArray(Double.class, Serializers.forDouble()));
-        if (registerStringArray) {
-            register(String[].class, Serializers.forArray(String.class, Serializers.forString()));
-        }
+        return this;
+    }
+
+    public Stasis registerStringArray() {
+        register(String[].class, Serializers.forArray(String.class, Serializers.forString()));
         return this;
     }
 

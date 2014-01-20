@@ -19,8 +19,8 @@ public class StasisTest {
 
     private ByteArrayOutputStream baos = new ByteArrayOutputStream();
     private DataOutputStream out = new DataOutputStream(baos);
-    private Stasis stasis = Stasis.create().registerNull().registerPrimitives(true).registerBoxedPrimitives(false)
-                                  .registerPrimitiveArrays(true).registerBoxedPrimitiveArrays(false).registerObjectArray()
+    private Stasis stasis = Stasis.create().registerNull().registerPrimitives().registerBoxedPrimitives().registerString()
+                                  .registerPrimitiveArrays().registerBoxedPrimitiveArrays().registerStringArray().registerObjectArray()
                                   .register(List.class, new ListSerializer());
     private Stasis.Writer writer = stasis.newWriter();
     private Stasis.Reader reader = stasis.newReader();
@@ -69,6 +69,17 @@ public class StasisTest {
         Assert.assertEquals((Long) 4l, reader.readObject(in, Long.class));
         Assert.assertEquals((Float) 5f, reader.readObject(in, Float.class));
         Assert.assertEquals((Double) 6.0, reader.readObject(in, Double.class));
+    }
+
+    @Test
+    public void enums() throws IOException {
+        Serializer<TestEnum> serializer = Serializers.forEnum(TestEnum.class);
+        writer.writeObject(TestEnum.VAL1, out, serializer);
+        writer.writeObject(TestEnum.VAL2, out, serializer);
+
+        DataInputStream in = in();
+        Assert.assertEquals(TestEnum.VAL1, reader.readObject(in, serializer));
+        Assert.assertEquals(TestEnum.VAL2, reader.readObject(in, serializer));
     }
 
     @Test
@@ -216,6 +227,10 @@ public class StasisTest {
 
     private DataInputStream in() {
         return new DataInputStream(new ByteArrayInputStream(baos.toByteArray()));
+    }
+
+    private enum TestEnum {
+        VAL1, VAL2
     }
 
     @SuppressWarnings("rawtypes")

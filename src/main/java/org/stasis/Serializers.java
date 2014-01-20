@@ -305,6 +305,26 @@ public class Serializers {
 
     };
 
+    private static class EnumSerializer<A extends Enum<A>> implements Serializer<A> {
+
+        private final Class<A> type;
+
+        public EnumSerializer(Class<A> type) {
+            this.type = type;
+        }
+
+        @Override
+        public void write(Writer writer, DataOutputStream out, A value) throws IOException {
+            forInt().write(writer, out, value.ordinal());
+        }
+
+        @Override
+        public A read(Reader reader, DataInputStream in) throws IOException {
+            return type.getEnumConstants()[forInt().read(reader, in)];
+        }
+
+    };
+
     public static Serializer<Void> forNull() {
         return NULL;
     }
@@ -379,6 +399,10 @@ public class Serializers {
 
     public static <A> Serializer<A[]> forArray(Class<A> type, Serializer<A> serializer) {
         return new ArraySerializer<>(type, serializer);
+    }
+
+    public static <A extends Enum<A>> Serializer<A> forEnum(Class<A> type) {
+        return new EnumSerializer<>(type);
     }
 
 }
