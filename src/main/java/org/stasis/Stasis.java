@@ -1,7 +1,7 @@
 package org.stasis;
 
-import java.io.DataInputStream;
-import java.io.DataOutputStream;
+import java.io.DataInput;
+import java.io.DataOutput;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -145,7 +145,7 @@ public class Stasis {
         }
 
         @SuppressWarnings("unchecked")
-        public void writeTypeAndObject(Object object, DataOutputStream out) throws IOException {
+        public void writeTypeAndObject(Object object, DataOutput out) throws IOException {
             int ref = refs.referenceFor(object);
             if (noRefFound(ref)) {
                 SerializerEntry entry = serializerEntryFor(classOf(object));
@@ -157,11 +157,11 @@ public class Stasis {
             }
         }
 
-        public <A> void writeObject(A object, DataOutputStream out, Class<? super A> type) throws IOException {
+        public <A> void writeObject(A object, DataOutput out, Class<? super A> type) throws IOException {
             writeObject(object, out, serializerFor(type));
         }
 
-        public <A> void writeObject(A object, DataOutputStream out, Serializer<? super A> serializer) throws IOException {
+        public <A> void writeObject(A object, DataOutput out, Serializer<? super A> serializer) throws IOException {
             int ref = refs.referenceFor(object);
             if (noRefFound(ref)) {
                 writeObject(object, out, 0, serializer);
@@ -174,13 +174,13 @@ public class Stasis {
             return object == null ? Void.class : object.getClass();
         }
 
-        private <A> void writeObject(A object, DataOutputStream out, int headerData, Serializer<A> serializer) throws IOException {
+        private <A> void writeObject(A object, DataOutput out, int headerData, Serializer<A> serializer) throws IOException {
             Varint.writeUnsignedVarInt(toHeader(headerData, OBJECT), out);
             serializer.write(this, out, object);
             refs.registerObject(object);
         }
 
-        private void writeRef(DataOutputStream out, int ref) throws IOException {
+        private void writeRef(DataOutput out, int ref) throws IOException {
             Varint.writeUnsignedVarInt(toHeader(ref, REFERENCE), out);
         }
 
@@ -194,7 +194,7 @@ public class Stasis {
             this.refs = refs;
         }
 
-        public Object readTypeAndObject(DataInputStream in) throws IOException {
+        public Object readTypeAndObject(DataInput in) throws IOException {
             int header = Varint.readUnsignedVarInt(in);
             if (isRef(header)) {
                 return readFromRef(header);
@@ -206,11 +206,11 @@ public class Stasis {
         }
 
         @SuppressWarnings("unchecked")
-        public <A> A readObject(DataInputStream in, Class<? super A> type) throws IOException {
+        public <A> A readObject(DataInput in, Class<? super A> type) throws IOException {
             return readObject(in, (Serializer<A>) serializerFor(type));
         }
 
-        public <A> A readObject(DataInputStream in, Serializer<A> serializer) throws IOException {
+        public <A> A readObject(DataInput in, Serializer<A> serializer) throws IOException {
             int header = Varint.readUnsignedVarInt(in);
             if (isRef(header)) {
                 return readFromRef(header);
@@ -225,7 +225,7 @@ public class Stasis {
             return (A) refs.objectFor(ref);
         }
 
-        private <A> A read(DataInputStream in, Serializer<A> serializer) throws IOException {
+        private <A> A read(DataInput in, Serializer<A> serializer) throws IOException {
             A object = serializer.read(this, in);
             refs.registerObject(object);
             return object;

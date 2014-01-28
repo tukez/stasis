@@ -2,7 +2,9 @@ package org.stasis;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.io.DataInput;
 import java.io.DataInputStream;
+import java.io.DataOutput;
 import java.io.DataOutputStream;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -207,12 +209,12 @@ public class StasisTest {
         stasis.register(String.class, new Serializer<String>() {
 
             @Override
-            public void write(Writer writer, DataOutputStream out, String value) throws IOException {
+            public void write(Writer writer, DataOutput out, String value) throws IOException {
                 // Do nothing
             }
 
             @Override
-            public String read(Reader reader, DataInputStream in) throws IOException {
+            public String read(Reader reader, DataInput in) throws IOException {
                 return "dummy";
             }
 
@@ -237,7 +239,7 @@ public class StasisTest {
     private class ListSerializer implements Serializer<List> {
 
         @Override
-        public void write(Writer writer, DataOutputStream out, List value) throws IOException {
+        public void write(Writer writer, DataOutput out, List value) throws IOException {
             out.writeInt(value.size());
             for (Object object : value) {
                 writer.writeTypeAndObject(object, out);
@@ -245,7 +247,7 @@ public class StasisTest {
         }
 
         @Override
-        public List read(Reader reader, DataInputStream in) throws IOException {
+        public List read(Reader reader, DataInput in) throws IOException {
             int size = in.readInt();
             LinkedList<Object> list = new LinkedList<>();
             for (int i = 0; i < size; i++) {
