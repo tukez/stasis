@@ -4,12 +4,15 @@ import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
 import java.lang.reflect.Array;
+import java.nio.charset.Charset;
 
 import org.stasis.Stasis.Reader;
 import org.stasis.Stasis.Writer;
 
 public class Serializers {
 
+	
+	
     private static final Serializer<Void> NULL = new Serializer<Void>() {
 
         @Override
@@ -135,16 +138,23 @@ public class Serializers {
 
     };
 
+    private static final Charset UTF8_CHARSET = Charset.forName("UTF-8");
+    
     private static final Serializer<String> STRING = new Serializer<String>() {
-
+    	
         @Override
         public void write(Writer writer, DataOutput out, String value) throws IOException {
-            out.writeUTF(value);
+        	byte[] bytes = value.getBytes(UTF8_CHARSET);
+        	Varint.writeUnsignedVarInt(bytes.length, out);
+        	out.write(bytes);
         }
 
         @Override
         public String read(Reader reader, DataInput in) throws IOException {
-            return in.readUTF();
+        	int length = Varint.readUnsignedVarInt(in);
+        	byte[] bytes = new byte[length];
+        	in.readFully(bytes);
+            return new String(bytes, UTF8_CHARSET);
         }
 
     };

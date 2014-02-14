@@ -50,6 +50,19 @@ public class StasisTest {
         Assert.assertEquals((Double) 6.0, reader.readObject(in, double.class));
         Assert.assertEquals("string", reader.readObject(in, String.class));
     }
+    
+    @Test
+    public void longString() throws IOException {
+    	StringBuilder strBuilder = new StringBuilder();
+    	for (int i=0; i<Short.MAX_VALUE * 2 + 1; i++) {
+    		strBuilder.append("v\u65e5\u672c");
+    	}
+    	String str = strBuilder.toString();
+    	
+    	writer.writeObject(str, out, String.class);
+    	DataInputStream in = in();
+        Assert.assertEquals(str, reader.readObject(in, String.class));
+    }
 
     @Test
     public void boxedPrimitives() throws IOException {
