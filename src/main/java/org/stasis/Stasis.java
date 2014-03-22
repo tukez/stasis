@@ -50,8 +50,8 @@ public class Stasis {
         register(char.class, Serializers.forChar());
         register(byte.class, Serializers.forByte());
         register(short.class, Serializers.forShort());
-        register(int.class, Serializers.forInt());
-        register(long.class, Serializers.forLong());
+        register(int.class, Serializers.forVarInt());
+        register(long.class, Serializers.forVarLong());
         register(float.class, Serializers.forFloat());
         register(double.class, Serializers.forDouble());
         return this;
@@ -62,8 +62,8 @@ public class Stasis {
         register(Character.class, Serializers.forChar());
         register(Byte.class, Serializers.forByte());
         register(Short.class, Serializers.forShort());
-        register(Integer.class, Serializers.forInt());
-        register(Long.class, Serializers.forLong());
+        register(Integer.class, Serializers.forVarInt());
+        register(Long.class, Serializers.forVarLong());
         register(Float.class, Serializers.forFloat());
         register(Double.class, Serializers.forDouble());
         return this;
@@ -89,8 +89,8 @@ public class Stasis {
         register(Character[].class, Serializers.forArray(Character.class, Serializers.forChar()));
         register(Byte[].class, Serializers.forArray(Byte.class, Serializers.forByte()));
         register(Short[].class, Serializers.forArray(Short.class, Serializers.forShort()));
-        register(Integer[].class, Serializers.forArray(Integer.class, Serializers.forInt()));
-        register(Long[].class, Serializers.forArray(Long.class, Serializers.forLong()));
+        register(Integer[].class, Serializers.forArray(Integer.class, Serializers.forVarInt()));
+        register(Long[].class, Serializers.forArray(Long.class, Serializers.forVarLong()));
         register(Float[].class, Serializers.forArray(Float.class, Serializers.forFloat()));
         register(Double[].class, Serializers.forArray(Double.class, Serializers.forDouble()));
         return this;

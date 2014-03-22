@@ -11,8 +11,6 @@ import org.stasis.Stasis.Writer;
 
 public class Serializers {
 
-	
-	
     private static final Serializer<Void> NULL = new Serializer<Void>() {
 
         @Override
@@ -86,6 +84,20 @@ public class Serializers {
 
         @Override
         public void write(Writer writer, DataOutput out, Integer value) throws IOException {
+            out.writeInt(value);
+        }
+
+        @Override
+        public Integer read(Reader reader, DataInput in) throws IOException {
+            return in.readInt();
+        }
+
+    };
+
+    private static final Serializer<Integer> VARINT = new Serializer<Integer>() {
+
+        @Override
+        public void write(Writer writer, DataOutput out, Integer value) throws IOException {
             Varint.writeSignedVarInt(value, out);
         }
 
@@ -96,7 +108,35 @@ public class Serializers {
 
     };
 
+    private static final Serializer<Integer> VARUINT = new Serializer<Integer>() {
+
+        @Override
+        public void write(Writer writer, DataOutput out, Integer value) throws IOException {
+            Varint.writeUnsignedVarInt(value, out);
+        }
+
+        @Override
+        public Integer read(Reader reader, DataInput in) throws IOException {
+            return Varint.readUnsignedVarInt(in);
+        }
+
+    };
+
     private static final Serializer<Long> LONG = new Serializer<Long>() {
+
+        @Override
+        public void write(Writer writer, DataOutput out, Long value) throws IOException {
+            out.writeLong(value);
+        }
+
+        @Override
+        public Long read(Reader reader, DataInput in) throws IOException {
+            return in.readLong();
+        }
+
+    };
+
+    private static final Serializer<Long> VARLONG = new Serializer<Long>() {
 
         @Override
         public void write(Writer writer, DataOutput out, Long value) throws IOException {
@@ -106,6 +146,20 @@ public class Serializers {
         @Override
         public Long read(Reader reader, DataInput in) throws IOException {
             return Varint.readSignedVarLong(in);
+        }
+
+    };
+
+    private static final Serializer<Long> VARULONG = new Serializer<Long>() {
+
+        @Override
+        public void write(Writer writer, DataOutput out, Long value) throws IOException {
+            Varint.writeUnsignedVarLong(value, out);
+        }
+
+        @Override
+        public Long read(Reader reader, DataInput in) throws IOException {
+            return Varint.readUnsignedVarLong(in);
         }
 
     };
@@ -139,21 +193,21 @@ public class Serializers {
     };
 
     private static final Charset UTF8_CHARSET = Charset.forName("UTF-8");
-    
+
     private static final Serializer<String> STRING = new Serializer<String>() {
-    	
+
         @Override
         public void write(Writer writer, DataOutput out, String value) throws IOException {
-        	byte[] bytes = value.getBytes(UTF8_CHARSET);
-        	Varint.writeUnsignedVarInt(bytes.length, out);
-        	out.write(bytes);
+            byte[] bytes = value.getBytes(UTF8_CHARSET);
+            Varint.writeUnsignedVarInt(bytes.length, out);
+            out.write(bytes);
         }
 
         @Override
         public String read(Reader reader, DataInput in) throws IOException {
-        	int length = Varint.readUnsignedVarInt(in);
-        	byte[] bytes = new byte[length];
-        	in.readFully(bytes);
+            int length = Varint.readUnsignedVarInt(in);
+            byte[] bytes = new byte[length];
+            in.readFully(bytes);
             return new String(bytes, UTF8_CHARSET);
         }
 
@@ -163,13 +217,13 @@ public class Serializers {
 
         @Override
         public void write(Writer writer, DataOutput out, byte[] value) throws IOException {
-            forInt().write(writer, out, value.length);
+            forVarUInt().write(writer, out, value.length);
             out.write(value);
         }
 
         @Override
         public byte[] read(Reader reader, DataInput in) throws IOException {
-            int size = forInt().read(reader, in);
+            int size = forVarUInt().read(reader, in);
             byte[] value = new byte[size];
             in.readFully(value);
             return value;
@@ -189,7 +243,7 @@ public class Serializers {
         @Override
         public final void write(Writer writer, DataOutput out, A array) throws IOException {
             int size = Array.getLength(array);
-            Serializers.forInt().write(writer, out, size);
+            Serializers.forVarUInt().write(writer, out, size);
             for (int i = 0; i < size; i++) {
                 serializer.write(writer, out, Array.get(array, i));
             }
@@ -197,7 +251,7 @@ public class Serializers {
 
         @Override
         public final A read(Reader reader, DataInput in) throws IOException {
-            int size = Serializers.forInt().read(reader, in);
+            int size = Serializers.forVarUInt().read(reader, in);
             A array = newArray(size);
             for (int i = 0; i < size; i++) {
                 Array.set(array, i, serializer.read(reader, in));
@@ -226,7 +280,7 @@ public class Serializers {
 
     };
 
-    private static final Serializer<int[]> INT_ARRAY = new PrimitiveArraySerializer<int[]>(forInt()) {
+    private static final Serializer<int[]> INT_ARRAY = new PrimitiveArraySerializer<int[]>(forVarInt()) {
 
         @Override
         protected int[] newArray(int size) {
@@ -235,7 +289,7 @@ public class Serializers {
 
     };
 
-    private static final Serializer<long[]> LONG_ARRAY = new PrimitiveArraySerializer<long[]>(forLong()) {
+    private static final Serializer<long[]> LONG_ARRAY = new PrimitiveArraySerializer<long[]>(forVarLong()) {
 
         @Override
         protected long[] newArray(int size) {
@@ -274,7 +328,7 @@ public class Serializers {
 
         @Override
         public void write(Writer writer, DataOutput out, A[] array) throws IOException {
-            Serializers.forInt().write(writer, out, array.length);
+            Serializers.forVarUInt().write(writer, out, array.length);
             for (A value : array) {
                 serializer.write(writer, out, value);
             }
@@ -283,7 +337,7 @@ public class Serializers {
         @SuppressWarnings("unchecked")
         @Override
         public A[] read(Reader reader, DataInput in) throws IOException {
-            int size = Serializers.forInt().read(reader, in);
+            int size = Serializers.forVarUInt().read(reader, in);
             A[] array = (A[]) Array.newInstance(type, size);
             for (int i = 0; i < size; i++) {
                 array[i] = (A) serializer.read(reader, in);
@@ -297,7 +351,7 @@ public class Serializers {
 
         @Override
         public void write(Writer writer, DataOutput out, Object[] array) throws IOException {
-            Serializers.forInt().write(writer, out, array.length);
+            Serializers.forVarUInt().write(writer, out, array.length);
             for (Object value : array) {
                 writer.writeTypeAndObject(value, out);
             }
@@ -305,7 +359,7 @@ public class Serializers {
 
         @Override
         public Object[] read(Reader reader, DataInput in) throws IOException {
-            int size = Serializers.forInt().read(reader, in);
+            int size = Serializers.forVarUInt().read(reader, in);
             Object[] array = new Object[size];
             for (int i = 0; i < size; i++) {
                 array[i] = reader.readTypeAndObject(in);
@@ -325,12 +379,12 @@ public class Serializers {
 
         @Override
         public void write(Writer writer, DataOutput out, A value) throws IOException {
-            forInt().write(writer, out, value.ordinal());
+            forVarUInt().write(writer, out, value.ordinal());
         }
 
         @Override
         public A read(Reader reader, DataInput in) throws IOException {
-            return type.getEnumConstants()[forInt().read(reader, in)];
+            return type.getEnumConstants()[forVarUInt().read(reader, in)];
         }
 
     };
@@ -359,8 +413,24 @@ public class Serializers {
         return INT;
     }
 
+    public static Serializer<Integer> forVarInt() {
+        return VARINT;
+    }
+
+    public static Serializer<Integer> forVarUInt() {
+        return VARUINT;
+    }
+
     public static Serializer<Long> forLong() {
         return LONG;
+    }
+
+    public static Serializer<Long> forVarLong() {
+        return VARLONG;
+    }
+
+    public static Serializer<Long> forVarULong() {
+        return VARULONG;
     }
 
     public static Serializer<Float> forFloat() {
