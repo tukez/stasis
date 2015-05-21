@@ -39,4 +39,10 @@ public class IdentityReferenceWriterTest {
         int ref2 = writer.referenceFor(obj2);
         Assert.assertTrue("reference not found", ref2 < 0);
     }
+    
+    @Test(expected = IllegalStateException.class)
+    public void usingWriterAfterCloseIsIllegal() {
+        writer.close();
+        writer.referenceFor("obj");
+    }
 }

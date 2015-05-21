@@ -12,4 +12,12 @@ public interface ReferenceWriter {
      * referenceFor(object) returns a reference for this object.
      */
     void registerObject(Object object);
+    
+    /**
+     * Close this writer to free up reserved resources.
+     * 
+     * @throws IllegalStateException
+     *             if this writer is used after call to close().
+     */
+    void close();
 }

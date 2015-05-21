@@ -10,6 +10,7 @@ public class DefaultReferenceReaderTest {
     @Test(expected = Exception.class)
     public void tryingToGetObjectBeforeRegisteringThrowsException() {
         reader.objectFor(0);
+        reader.close();
     }
 
     @Test
@@ -19,5 +20,14 @@ public class DefaultReferenceReaderTest {
 
         Assert.assertEquals("obj1", reader.objectFor(0));
         Assert.assertEquals("obj2", reader.objectFor(1));
+
+        reader.close();
+    }
+
+    @Test(expected = IllegalStateException.class)
+    public void usingReaderAfterCloseIsIllegal() {
+        reader.registerObject("obj1");
+        reader.close();
+        reader.objectFor(0);
     }
 }

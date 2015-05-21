@@ -8,4 +8,9 @@ public class HashReferenceWriter extends AbstractMapBasedReferenceWriter {
         super(new HashMap<Object, Integer>());
     }
 
+    @Override
+    public void doClose() {
+        // Nothing to do
+    }
+
 }

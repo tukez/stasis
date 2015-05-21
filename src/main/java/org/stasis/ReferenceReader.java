@@ -12,4 +12,12 @@ public interface ReferenceReader {
      * referenceFor(ref) returns an object for the appropriate reference.
      */
     void registerObject(Object object);
+
+    /**
+     * Close this reader to free up reserved resources.
+     * 
+     * @throws IllegalStateException
+     *             if this reader is used after call to close().
+     */
+    void close();
 }

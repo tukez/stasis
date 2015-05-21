@@ -143,6 +143,13 @@ public class Stasis {
         private Writer(ReferenceWriter refs) {
             this.refs = refs;
         }
+        
+        /**
+         * Close this writer to release reserved resources.
+         */
+        public void close() {
+            refs.close();
+        }
 
         @SuppressWarnings("unchecked")
         public void writeTypeAndObject(Object object, DataOutput out) throws IOException {
@@ -192,6 +199,13 @@ public class Stasis {
 
         private Reader(ReferenceReader refs) {
             this.refs = refs;
+        }
+        
+        /**
+         * Close this reader to release reserved resources.
+         */
+        public void close() {
+            refs.close();
         }
 
         public Object readTypeAndObject(DataInput in) throws IOException {

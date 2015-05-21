@@ -12,6 +12,7 @@ import java.util.Arrays;
 import java.util.LinkedList;
 import java.util.List;
 
+import org.junit.After;
 import org.junit.Assert;
 import org.junit.Test;
 import org.stasis.Stasis.Reader;
@@ -27,6 +28,12 @@ public class StasisTest {
     private Stasis.Writer writer = stasis.newWriter();
     private Stasis.Reader reader = stasis.newReader();
 
+    @After
+    public void after() {
+        writer.close();
+        reader.close();
+    }
+    
     @Test
     public void primitives() throws IOException {
         writer.writeObject(true, out, boolean.class);

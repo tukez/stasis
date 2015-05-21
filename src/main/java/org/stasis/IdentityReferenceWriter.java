@@ -8,4 +8,9 @@ public class IdentityReferenceWriter extends AbstractMapBasedReferenceWriter {
         super(new IdentityHashMap<Object, Integer>());
     }
 
+    @Override
+    public void doClose() {
+        // Nothing to do
+    }
+
 }
