@@ -1,6 +1,5 @@
 package org.stasis;
 
-import java.io.ByteArrayOutputStream;
 import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
@@ -8,8 +7,9 @@ import java.lang.reflect.Array;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
-import java.nio.ByteBuffer;
 import java.nio.charset.Charset;
+import java.nio.charset.CharsetDecoder;
+import java.nio.charset.CharsetEncoder;
 import java.nio.charset.CodingErrorAction;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
@@ -17,6 +17,10 @@ import java.util.concurrent.BlockingQueue;
 import org.stasis.Stasis.Reader;
 import org.stasis.Stasis.Writer;
 
+import sun.nio.cs.ArrayDecoder;
+import sun.nio.cs.ArrayEncoder;
+
+@SuppressWarnings("restriction")
 public class Serializers {
 
     private static final Serializer<Void> NULL = new Serializer<Void>() {
@@ -216,82 +220,53 @@ public class Serializers {
         }
     }
 
-    private static final class ExposedByteArrayOutputStream extends ByteArrayOutputStream {
-
-        public byte[] buf() {
-            return buf;
-        }
-
-    }
-
     private static final Serializer<String> STRING = new Serializer<String>() {
 
-        private final BlockingQueue<ByteBuffer> BUFFERS = new ArrayBlockingQueue<>(16);
-        private final BlockingQueue<ExposedByteArrayOutputStream> STREAMS = new ArrayBlockingQueue<>(16);
+        private final BlockingQueue<byte[]> ARRAYS = new ArrayBlockingQueue<>(8);
 
         {
-            for (int i = 0; i < BUFFERS.remainingCapacity(); i++) {
-                BUFFERS.add(ByteBuffer.allocate(4096));
-                STREAMS.add(new ExposedByteArrayOutputStream());
+            for (int i = 0; i < ARRAYS.remainingCapacity(); i++) {
+                ARRAYS.add(new byte[4096]);
             }
         }
 
-        private ByteBuffer borrowBuffer() {
+        private byte[] borrowBuffer() {
             try {
-                return BUFFERS.take();
+                return ARRAYS.take();
             } catch (InterruptedException e) {
                 throw new IllegalStateException(e);
             }
         }
 
-        private void release(ByteBuffer out) {
-            out.clear();
-            if (!BUFFERS.offer(out)) {
-                throw new IllegalStateException("Could not release " + out.getClass().getName());
-            }
-        }
-
-        private ExposedByteArrayOutputStream borrowStream() {
-            try {
-                return STREAMS.take();
-            } catch (InterruptedException e) {
-                throw new IllegalStateException(e);
-            }
-        }
-
-        private void release(ExposedByteArrayOutputStream out) {
-            out.reset();
-            if (!STREAMS.offer(out)) {
+        private void release(byte[] out) {
+            if (!ARRAYS.offer(out)) {
                 throw new IllegalStateException("Could not release " + out.getClass().getName());
             }
         }
 
         @Override
         public void write(Writer writer, DataOutput out, String value) throws IOException {
-            ExposedByteArrayOutputStream baos = borrowStream();
+            byte[] buffer = borrowBuffer();
             try {
-                ByteBuffer buffer = borrowBuffer();
-                try {
-                    char[] chars = (char[]) STRING_CHARS.get(value);
-                    Varint.writeUnsignedVarInt(chars.length, out); // char size
-                    if (chars.length > 0) {
-                        StreamEncoder encoder = new StreamEncoder(baos, buffer, UTF8_CHARSET.newEncoder()
-                                .onMalformedInput(CodingErrorAction.REPLACE)
-                                .onUnmappableCharacter(CodingErrorAction.REPLACE));
-
-                        encoder.write(chars, 0, chars.length);
-                        encoder.close();
-
-                        Varint.writeUnsignedVarInt(baos.size(), out); // byte size
-                        out.write(baos.buf(), 0, baos.size()); // content
+                char[] chars = (char[]) STRING_CHARS.get(value);
+                Varint.writeUnsignedVarInt(chars.length, out); // char length
+                if (chars.length > 0) {
+                    CharsetEncoder encoder = UTF8_CHARSET.newEncoder().onMalformedInput(CodingErrorAction.REPLACE)
+                            .onUnmappableCharacter(CodingErrorAction.REPLACE);
+                    int maxBytes = (int) (chars.length * (double) encoder.maxBytesPerChar());
+                    if (buffer.length < maxBytes) {
+                        buffer = new byte[maxBytes];
                     }
-                } catch (IllegalArgumentException | IllegalAccessException e) {
-                    throw new IllegalStateException(e);
-                } finally {
-                    release(buffer);
+
+                    int encodedBytes = ((ArrayEncoder) encoder).encode(chars, 0, chars.length, buffer);
+
+                    Varint.writeUnsignedVarInt(encodedBytes, out); // byte length
+                    out.write(buffer, 0, encodedBytes); // content
                 }
+            } catch (IllegalArgumentException | IllegalAccessException e) {
+                throw new IllegalStateException(e);
             } finally {
-                release(baos);
+                release(buffer);
             }
         }
 
@@ -301,22 +276,25 @@ public class Serializers {
             if (length == 0) {
                 return "";
             } else {
-                int byteSize = Varint.readUnsignedVarInt(in);
                 char[] chars = new char[length];
+                int byteLength = Varint.readUnsignedVarInt(in);
 
-                ByteBuffer inBuffer = borrowBuffer();
+                byte[] buffer = borrowBuffer();
                 try {
-                    inBuffer.clear();
-                    StreamDecoder decoder = new StreamDecoder(in, byteSize, inBuffer, UTF8_CHARSET.newDecoder()
-                            .onMalformedInput(CodingErrorAction.REPLACE)
-                            .onUnmappableCharacter(CodingErrorAction.REPLACE));
+                    if (buffer.length < byteLength) {
+                        buffer = new byte[byteLength];
+                    }
+                    in.readFully(buffer, 0, byteLength);
 
-                    int n = decoder.read(chars, 0, length);
-                    if (n != length) {
-                        throw new IllegalStateException();
+                    CharsetDecoder dec = UTF8_CHARSET.newDecoder().onMalformedInput(CodingErrorAction.REPLACE)
+                            .onUnmappableCharacter(CodingErrorAction.REPLACE);
+                    int decodedChars = ((ArrayDecoder) dec).decode(buffer, 0, byteLength, chars);
+                    if (length != decodedChars) {
+                        throw new IllegalStateException("Decoded chars does not match with length read from stream. "
+                                + decodedChars + " != " + length);
                     }
                 } finally {
-                    release(inBuffer);
+                    release(buffer);
                 }
 
                 try {
