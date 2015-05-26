@@ -1,10 +1,18 @@
 package org.stasis;
 
+import java.io.ByteArrayOutputStream;
 import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
 import java.lang.reflect.Array;
+import java.lang.reflect.Constructor;
+import java.lang.reflect.Field;
+import java.lang.reflect.InvocationTargetException;
+import java.nio.ByteBuffer;
 import java.nio.charset.Charset;
+import java.nio.charset.CodingErrorAction;
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.BlockingQueue;
 
 import org.stasis.Stasis.Reader;
 import org.stasis.Stasis.Writer;
@@ -194,21 +202,127 @@ public class Serializers {
 
     private static final Charset UTF8_CHARSET = Charset.forName("UTF-8");
 
+    private static final Field STRING_CHARS;
+    private static final Constructor<String> STRING_CONSTRUCTOR;
+    static {
+        try {
+            STRING_CHARS = String.class.getDeclaredField("value");
+            STRING_CHARS.setAccessible(true);
+
+            STRING_CONSTRUCTOR = String.class.getDeclaredConstructor(char[].class, boolean.class);
+            STRING_CONSTRUCTOR.setAccessible(true);
+        } catch (NoSuchFieldException | SecurityException | NoSuchMethodException e) {
+            throw new IllegalStateException(e);
+        }
+    }
+
+    private static final class ExposedByteArrayOutputStream extends ByteArrayOutputStream {
+
+        public byte[] buf() {
+            return buf;
+        }
+
+    }
+
     private static final Serializer<String> STRING = new Serializer<String>() {
+
+        private final BlockingQueue<ByteBuffer> BUFFERS = new ArrayBlockingQueue<>(16);
+        private final BlockingQueue<ExposedByteArrayOutputStream> STREAMS = new ArrayBlockingQueue<>(16);
+
+        {
+            for (int i = 0; i < BUFFERS.remainingCapacity(); i++) {
+                BUFFERS.add(ByteBuffer.allocate(4096));
+                STREAMS.add(new ExposedByteArrayOutputStream());
+            }
+        }
+
+        private ByteBuffer borrowBuffer() {
+            try {
+                return BUFFERS.take();
+            } catch (InterruptedException e) {
+                throw new IllegalStateException(e);
+            }
+        }
+
+        private void release(ByteBuffer out) {
+            out.clear();
+            if (!BUFFERS.offer(out)) {
+                throw new IllegalStateException("Could not release " + out.getClass().getName());
+            }
+        }
+
+        private ExposedByteArrayOutputStream borrowStream() {
+            try {
+                return STREAMS.take();
+            } catch (InterruptedException e) {
+                throw new IllegalStateException(e);
+            }
+        }
+
+        private void release(ExposedByteArrayOutputStream out) {
+            out.reset();
+            if (!STREAMS.offer(out)) {
+                throw new IllegalStateException("Could not release " + out.getClass().getName());
+            }
+        }
 
         @Override
         public void write(Writer writer, DataOutput out, String value) throws IOException {
-            byte[] bytes = value.getBytes(UTF8_CHARSET);
-            Varint.writeUnsignedVarInt(bytes.length, out);
-            out.write(bytes);
+            ExposedByteArrayOutputStream baos = borrowStream();
+            try {
+                ByteBuffer buffer = borrowBuffer();
+                try {
+                    StreamEncoder encoder = new StreamEncoder(baos, buffer, UTF8_CHARSET.newEncoder()
+                            .onMalformedInput(CodingErrorAction.REPLACE)
+                            .onUnmappableCharacter(CodingErrorAction.REPLACE));
+                    char[] chars = (char[]) STRING_CHARS.get(value);
+                    encoder.write(chars, 0, chars.length);
+                    encoder.close();
+
+                    Varint.writeUnsignedVarInt(chars.length, out); // char size
+                    Varint.writeUnsignedVarInt(baos.size(), out); // byte size
+                    out.write(baos.buf(), 0, baos.size()); // content
+                } catch (IllegalArgumentException | IllegalAccessException e) {
+                    throw new IllegalStateException(e);
+                } finally {
+                    release(buffer);
+                }
+            } finally {
+                release(baos);
+            }
         }
 
         @Override
         public String read(Reader reader, DataInput in) throws IOException {
             int length = Varint.readUnsignedVarInt(in);
-            byte[] bytes = new byte[length];
-            in.readFully(bytes);
-            return new String(bytes, UTF8_CHARSET);
+            if (length == 0) {
+                return "";
+            } else {
+                int byteSize = Varint.readUnsignedVarInt(in);
+                char[] chars = new char[length];
+
+                ByteBuffer inBuffer = borrowBuffer();
+                try {
+                    inBuffer.clear();
+                    StreamDecoder decoder = new StreamDecoder(in, byteSize, inBuffer, UTF8_CHARSET.newDecoder()
+                            .onMalformedInput(CodingErrorAction.REPLACE)
+                            .onUnmappableCharacter(CodingErrorAction.REPLACE));
+
+                    int n = decoder.read(chars, 0, length);
+                    if (n != length) {
+                        throw new IllegalStateException();
+                    }
+                } finally {
+                    release(inBuffer);
+                }
+
+                try {
+                    return STRING_CONSTRUCTOR.newInstance(chars, true);
+                } catch (InstantiationException | IllegalAccessException | IllegalArgumentException
+                        | InvocationTargetException e) {
+                    throw new IllegalStateException(e);
+                }
+            }
         }
 
     };

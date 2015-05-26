@@ -11,6 +11,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Random;
 
 import org.junit.After;
 import org.junit.Assert;
@@ -22,9 +23,9 @@ public class StasisTest {
 
     private ByteArrayOutputStream baos = new ByteArrayOutputStream();
     private DataOutputStream out = new DataOutputStream(baos);
-    private Stasis stasis = Stasis.create().registerNull().registerPrimitives().registerBoxedPrimitives().registerString()
-                                  .registerPrimitiveArrays().registerBoxedPrimitiveArrays().registerStringArray().registerObjectArray()
-                                  .register(List.class, new ListSerializer());
+    private Stasis stasis = Stasis.create().registerNull().registerPrimitives().registerBoxedPrimitives()
+            .registerString().registerPrimitiveArrays().registerBoxedPrimitiveArrays().registerStringArray()
+            .registerObjectArray().register(List.class, new ListSerializer());
     private Stasis.Writer writer = stasis.newWriter();
     private Stasis.Reader reader = stasis.newReader();
 
@@ -33,7 +34,7 @@ public class StasisTest {
         writer.close();
         reader.close();
     }
-    
+
     @Test
     public void primitives() throws IOException {
         writer.writeObject(true, out, boolean.class);
@@ -57,17 +58,17 @@ public class StasisTest {
         Assert.assertEquals((Double) 6.0, reader.readObject(in, double.class));
         Assert.assertEquals("string", reader.readObject(in, String.class));
     }
-    
+
     @Test
     public void longString() throws IOException {
-    	StringBuilder strBuilder = new StringBuilder();
-    	for (int i=0; i<Short.MAX_VALUE * 2 + 1; i++) {
-    		strBuilder.append("v\u65e5\u672c");
-    	}
-    	String str = strBuilder.toString();
-    	
-    	writer.writeObject(str, out, String.class);
-    	DataInputStream in = in();
+        StringBuilder strBuilder = new StringBuilder();
+        for (int i = 0; i < Short.MAX_VALUE * 2 + 1; i++) {
+            strBuilder.append("v\u65e5\u672c");
+        }
+        String str = strBuilder.toString();
+
+        writer.writeObject(str, out, String.class);
+        DataInputStream in = in();
         Assert.assertEquals(str, reader.readObject(in, String.class));
     }
 
@@ -164,7 +165,7 @@ public class StasisTest {
         writer.writeTypeAndObject(new Object[] { "string", null, new Object[] { 2, new int[] { 3, 4 } } }, out);
         DataInputStream in = in();
         Assert.assertArrayEquals(new Object[] { "string", null, new Object[] { 2, new int[] { 3, 4 } } },
-                                 (Object[]) reader.readTypeAndObject(in));
+                (Object[]) reader.readTypeAndObject(in));
     }
 
     @Test
@@ -245,6 +246,26 @@ public class StasisTest {
         Object object = reader.readTypeAndObject(in);
 
         Assert.assertEquals("String serializer was overridden", "dummy", object);
+    }
+
+    @Test
+    public void serializeDifferentLengthStrings() throws IOException {
+        StringBuilder buffer = new StringBuilder();
+        Random rand = new Random(123);
+        for (int i = 0; i < 5000; i++) {
+            if (i > 0) {
+                buffer.append(rand.nextInt(65536));
+            }
+            writer = stasis.newWriter();
+
+            baos.reset();
+            String str1 = buffer.toString();
+            writer.writeObject(str1, out, Serializers.forString());
+            DataInputStream in = in();
+            String str2 = reader.readObject(in, String.class);
+
+            Assert.assertEquals(str1, str2);
+        }
     }
 
     private DataInputStream in() {
