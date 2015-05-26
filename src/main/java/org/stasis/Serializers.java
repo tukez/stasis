@@ -272,16 +272,19 @@ public class Serializers {
             try {
                 ByteBuffer buffer = borrowBuffer();
                 try {
-                    StreamEncoder encoder = new StreamEncoder(baos, buffer, UTF8_CHARSET.newEncoder()
-                            .onMalformedInput(CodingErrorAction.REPLACE)
-                            .onUnmappableCharacter(CodingErrorAction.REPLACE));
                     char[] chars = (char[]) STRING_CHARS.get(value);
-                    encoder.write(chars, 0, chars.length);
-                    encoder.close();
-
                     Varint.writeUnsignedVarInt(chars.length, out); // char size
-                    Varint.writeUnsignedVarInt(baos.size(), out); // byte size
-                    out.write(baos.buf(), 0, baos.size()); // content
+                    if (chars.length > 0) {
+                        StreamEncoder encoder = new StreamEncoder(baos, buffer, UTF8_CHARSET.newEncoder()
+                                .onMalformedInput(CodingErrorAction.REPLACE)
+                                .onUnmappableCharacter(CodingErrorAction.REPLACE));
+
+                        encoder.write(chars, 0, chars.length);
+                        encoder.close();
+
+                        Varint.writeUnsignedVarInt(baos.size(), out); // byte size
+                        out.write(baos.buf(), 0, baos.size()); // content
+                    }
                 } catch (IllegalArgumentException | IllegalAccessException e) {
                     throw new IllegalStateException(e);
                 } finally {

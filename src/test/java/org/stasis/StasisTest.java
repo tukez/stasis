@@ -73,6 +73,28 @@ public class StasisTest {
     }
 
     @Test
+    public void randomStrings() throws IOException {
+        List<String> strings = new ArrayList<>();
+
+        Random rand = new Random(123);
+        for (int i = 0; i < 100; i++) {
+            StringBuilder strBuilder = new StringBuilder();
+            for (int a = 0; a < rand.nextInt(5); a++) {
+                strBuilder.append(rand.nextInt(65536));
+            }
+            strings.add(strBuilder.toString());
+        }
+
+        for (String str : strings) {
+            writer.writeObject(str, out, String.class);
+        }
+        DataInputStream in = in();
+        for (String str : strings) {
+            Assert.assertEquals(str, reader.readObject(in, String.class));
+        }
+    }
+
+    @Test
     public void boxedPrimitives() throws IOException {
         writer.writeObject(true, out, Boolean.class);
         writer.writeObject('a', out, Character.class);
