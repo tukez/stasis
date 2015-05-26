@@ -11,11 +11,12 @@ import java.nio.charset.Charset;
 import java.nio.charset.CharsetDecoder;
 import java.nio.charset.CharsetEncoder;
 import java.nio.charset.CodingErrorAction;
-import java.util.concurrent.ArrayBlockingQueue;
-import java.util.concurrent.BlockingQueue;
 
 import org.stasis.Stasis.Reader;
 import org.stasis.Stasis.Writer;
+import org.stasis.pool.ObjectFactory;
+import org.stasis.pool.ObjectPool;
+import org.stasis.pool.StaticObjectPool;
 
 import sun.nio.cs.ArrayDecoder;
 import sun.nio.cs.ArrayEncoder;
@@ -220,42 +221,66 @@ public class Serializers {
         }
     }
 
+    private static final class EncoderEntry {
+        final CharsetEncoder encoder;
+        final CharsetDecoder decoder;
+        final byte[] buffer;
+
+        public EncoderEntry(CharsetEncoder encoder, CharsetDecoder decoder, byte[] buffer) {
+            this.encoder = encoder;
+            this.decoder = decoder;
+            this.buffer = buffer;
+        }
+    }
+
     private static final Serializer<String> STRING = new Serializer<String>() {
 
-        private final BlockingQueue<byte[]> ARRAYS = new ArrayBlockingQueue<>(8);
+        private final ObjectPool<EncoderEntry> ENCODERS = new StaticObjectPool<EncoderEntry>(8,
+                new ObjectFactory<EncoderEntry>() {
 
-        {
-            for (int i = 0; i < ARRAYS.remainingCapacity(); i++) {
-                ARRAYS.add(new byte[4096]);
-            }
+                    @Override
+                    public EncoderEntry create() {
+                        return new EncoderEntry(UTF8_CHARSET.newEncoder().onMalformedInput(CodingErrorAction.REPLACE)
+                                .onUnmappableCharacter(CodingErrorAction.REPLACE), UTF8_CHARSET.newDecoder()
+                                .onMalformedInput(CodingErrorAction.REPLACE)
+                                .onUnmappableCharacter(CodingErrorAction.REPLACE), new byte[4096]);
+                    }
+
+                    @Override
+                    public void onBorrow(EncoderEntry object) {
+                    }
+
+                    @Override
+                    public void onRelease(EncoderEntry object) {
+                    }
+
+                });
+
+        private EncoderEntry borrowEncoder() {
+            return ENCODERS.borrow();
         }
 
-        private byte[] borrowBuffer() {
-            try {
-                return ARRAYS.take();
-            } catch (InterruptedException e) {
-                throw new IllegalStateException(e);
-            }
-        }
-
-        private void release(byte[] out) {
-            if (!ARRAYS.offer(out)) {
+        private void release(EncoderEntry out) {
+            if (!ENCODERS.release(out)) {
                 throw new IllegalStateException("Could not release " + out.getClass().getName());
             }
         }
 
         @Override
         public void write(Writer writer, DataOutput out, String value) throws IOException {
-            byte[] buffer = borrowBuffer();
+            EncoderEntry encoderEntry = borrowEncoder();
             try {
+                byte[] buffer = encoderEntry.buffer;
                 char[] chars = (char[]) STRING_CHARS.get(value);
                 Varint.writeUnsignedVarInt(chars.length, out); // char length
                 if (chars.length > 0) {
-                    CharsetEncoder encoder = UTF8_CHARSET.newEncoder().onMalformedInput(CodingErrorAction.REPLACE)
-                            .onUnmappableCharacter(CodingErrorAction.REPLACE);
+                    CharsetEncoder encoder = encoderEntry.encoder;
+                    encoder.reset();
+
                     int maxBytes = (int) (chars.length * (double) encoder.maxBytesPerChar());
                     if (buffer.length < maxBytes) {
                         buffer = new byte[maxBytes];
+                        encoderEntry = new EncoderEntry(encoder, encoderEntry.decoder, buffer);
                     }
 
                     int encodedBytes = ((ArrayEncoder) encoder).encode(chars, 0, chars.length, buffer);
@@ -266,7 +291,7 @@ public class Serializers {
             } catch (IllegalArgumentException | IllegalAccessException e) {
                 throw new IllegalStateException(e);
             } finally {
-                release(buffer);
+                release(encoderEntry);
             }
         }
 
@@ -279,22 +304,25 @@ public class Serializers {
                 char[] chars = new char[length];
                 int byteLength = Varint.readUnsignedVarInt(in);
 
-                byte[] buffer = borrowBuffer();
+                EncoderEntry encoderEntry = borrowEncoder();
                 try {
+                    CharsetDecoder decoder = encoderEntry.decoder;
+                    decoder.reset();
+
+                    byte[] buffer = encoderEntry.buffer;
                     if (buffer.length < byteLength) {
                         buffer = new byte[byteLength];
+                        encoderEntry = new EncoderEntry(encoderEntry.encoder, decoder, buffer);
                     }
                     in.readFully(buffer, 0, byteLength);
 
-                    CharsetDecoder dec = UTF8_CHARSET.newDecoder().onMalformedInput(CodingErrorAction.REPLACE)
-                            .onUnmappableCharacter(CodingErrorAction.REPLACE);
-                    int decodedChars = ((ArrayDecoder) dec).decode(buffer, 0, byteLength, chars);
+                    int decodedChars = ((ArrayDecoder) decoder).decode(buffer, 0, byteLength, chars);
                     if (length != decodedChars) {
                         throw new IllegalStateException("Decoded chars does not match with length read from stream. "
                                 + decodedChars + " != " + length);
                     }
                 } finally {
-                    release(buffer);
+                    release(encoderEntry);
                 }
 
                 try {
