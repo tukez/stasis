@@ -4,24 +4,11 @@ import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
 import java.lang.reflect.Array;
-import java.lang.reflect.Constructor;
-import java.lang.reflect.Field;
-import java.lang.reflect.InvocationTargetException;
-import java.nio.charset.Charset;
-import java.nio.charset.CharsetDecoder;
-import java.nio.charset.CharsetEncoder;
-import java.nio.charset.CodingErrorAction;
+import java.nio.charset.StandardCharsets;
 
 import org.stasis.Stasis.Reader;
 import org.stasis.Stasis.Writer;
-import org.stasis.pool.ObjectFactory;
-import org.stasis.pool.ObjectPool;
-import org.stasis.pool.StaticObjectPool;
 
-import sun.nio.cs.ArrayDecoder;
-import sun.nio.cs.ArrayEncoder;
-
-@SuppressWarnings("restriction")
 public class Serializers {
 
     private static final Serializer<Void> NULL = new Serializer<Void>() {
@@ -205,132 +192,28 @@ public class Serializers {
 
     };
 
-    private static final Charset UTF8_CHARSET = Charset.forName("UTF-8");
-
-    private static final Field STRING_CHARS;
-    private static final Constructor<String> STRING_CONSTRUCTOR;
-    static {
-        try {
-            STRING_CHARS = String.class.getDeclaredField("value");
-            STRING_CHARS.setAccessible(true);
-
-            STRING_CONSTRUCTOR = String.class.getDeclaredConstructor(char[].class, boolean.class);
-            STRING_CONSTRUCTOR.setAccessible(true);
-        } catch (NoSuchFieldException | SecurityException | NoSuchMethodException e) {
-            throw new IllegalStateException(e);
-        }
-    }
-
-    private static final class EncoderEntry {
-        final CharsetEncoder encoder;
-        final CharsetDecoder decoder;
-        final byte[] buffer;
-
-        public EncoderEntry(CharsetEncoder encoder, CharsetDecoder decoder, byte[] buffer) {
-            this.encoder = encoder;
-            this.decoder = decoder;
-            this.buffer = buffer;
-        }
-    }
-
     private static final Serializer<String> STRING = new Serializer<String>() {
-
-        private final ObjectPool<EncoderEntry> ENCODERS = new StaticObjectPool<EncoderEntry>(8,
-                new ObjectFactory<EncoderEntry>() {
-
-                    @Override
-                    public EncoderEntry create() {
-                        return new EncoderEntry(UTF8_CHARSET.newEncoder().onMalformedInput(CodingErrorAction.REPLACE)
-                                .onUnmappableCharacter(CodingErrorAction.REPLACE), UTF8_CHARSET.newDecoder()
-                                .onMalformedInput(CodingErrorAction.REPLACE)
-                                .onUnmappableCharacter(CodingErrorAction.REPLACE), new byte[4096]);
-                    }
-
-                    @Override
-                    public void onBorrow(EncoderEntry object) {
-                    }
-
-                    @Override
-                    public void onRelease(EncoderEntry object) {
-                    }
-
-                });
-
-        private EncoderEntry borrowEncoder() {
-            return ENCODERS.borrow();
-        }
-
-        private void release(EncoderEntry out) {
-            if (!ENCODERS.release(out)) {
-                throw new IllegalStateException("Could not release " + out.getClass().getName());
-            }
-        }
 
         @Override
         public void write(Writer writer, DataOutput out, String value) throws IOException {
-            EncoderEntry encoderEntry = borrowEncoder();
-            try {
-                byte[] buffer = encoderEntry.buffer;
-                char[] chars = (char[]) STRING_CHARS.get(value);
-                Varint.writeUnsignedVarInt(chars.length, out); // char length
-                if (chars.length > 0) {
-                    CharsetEncoder encoder = encoderEntry.encoder;
-                    encoder.reset();
-
-                    int maxBytes = (int) (chars.length * (double) encoder.maxBytesPerChar());
-                    if (buffer.length < maxBytes) {
-                        buffer = new byte[maxBytes];
-                        encoderEntry = new EncoderEntry(encoder, encoderEntry.decoder, buffer);
-                    }
-
-                    int encodedBytes = ((ArrayEncoder) encoder).encode(chars, 0, chars.length, buffer);
-
-                    Varint.writeUnsignedVarInt(encodedBytes, out); // byte length
-                    out.write(buffer, 0, encodedBytes); // content
-                }
-            } catch (IllegalArgumentException | IllegalAccessException e) {
-                throw new IllegalStateException(e);
-            } finally {
-                release(encoderEntry);
+            Varint.writeUnsignedVarInt(value.length(), out); // char length
+            if (value.length() > 0) {
+                byte[] bytes = value.getBytes(StandardCharsets.UTF_8);
+                Varint.writeUnsignedVarInt(bytes.length, out); // byte length
+                out.write(bytes); // content
             }
         }
 
         @Override
         public String read(Reader reader, DataInput in) throws IOException {
-            int length = Varint.readUnsignedVarInt(in);
+            int length = Varint.readUnsignedVarInt(in); // char length
             if (length == 0) {
                 return "";
             } else {
-                char[] chars = new char[length];
-                int byteLength = Varint.readUnsignedVarInt(in);
-
-                EncoderEntry encoderEntry = borrowEncoder();
-                try {
-                    CharsetDecoder decoder = encoderEntry.decoder;
-                    decoder.reset();
-
-                    byte[] buffer = encoderEntry.buffer;
-                    if (buffer.length < byteLength) {
-                        buffer = new byte[byteLength];
-                        encoderEntry = new EncoderEntry(encoderEntry.encoder, decoder, buffer);
-                    }
-                    in.readFully(buffer, 0, byteLength);
-
-                    int decodedChars = ((ArrayDecoder) decoder).decode(buffer, 0, byteLength, chars);
-                    if (length != decodedChars) {
-                        throw new IllegalStateException("Decoded chars does not match with length read from stream. "
-                                + decodedChars + " != " + length);
-                    }
-                } finally {
-                    release(encoderEntry);
-                }
-
-                try {
-                    return STRING_CONSTRUCTOR.newInstance(chars, true);
-                } catch (InstantiationException | IllegalAccessException | IllegalArgumentException
-                        | InvocationTargetException e) {
-                    throw new IllegalStateException(e);
-                }
+                int byteLength = Varint.readUnsignedVarInt(in); // byte length
+                byte[] bytes = new byte[byteLength];
+                in.readFully(bytes); // content
+                return new String(bytes, StandardCharsets.UTF_8);
             }
         }
 

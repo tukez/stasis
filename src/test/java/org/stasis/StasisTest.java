@@ -23,9 +23,16 @@ public class StasisTest {
 
     private ByteArrayOutputStream baos = new ByteArrayOutputStream();
     private DataOutputStream out = new DataOutputStream(baos);
-    private Stasis stasis = Stasis.create().registerNull().registerPrimitives().registerBoxedPrimitives()
-            .registerString().registerPrimitiveArrays().registerBoxedPrimitiveArrays().registerStringArray()
-            .registerObjectArray().register(List.class, new ListSerializer());
+    private Stasis stasis = Stasis.create()
+                                  .registerNull()
+                                  .registerPrimitives()
+                                  .registerBoxedPrimitives()
+                                  .registerString()
+                                  .registerPrimitiveArrays()
+                                  .registerBoxedPrimitiveArrays()
+                                  .registerStringArray()
+                                  .registerObjectArray()
+                                  .register(List.class, new ListSerializer());
     private Stasis.Writer writer = stasis.newWriter();
     private Stasis.Reader reader = stasis.newReader();
 
@@ -187,7 +194,7 @@ public class StasisTest {
         writer.writeTypeAndObject(new Object[] { "string", null, new Object[] { 2, new int[] { 3, 4 } } }, out);
         DataInputStream in = in();
         Assert.assertArrayEquals(new Object[] { "string", null, new Object[] { 2, new int[] { 3, 4 } } },
-                (Object[]) reader.readTypeAndObject(in));
+                                 (Object[]) reader.readTypeAndObject(in));
     }
 
     @Test
@@ -295,7 +302,8 @@ public class StasisTest {
     }
 
     private enum TestEnum {
-        VAL1, VAL2
+                           VAL1,
+                           VAL2
     }
 
     @SuppressWarnings("rawtypes")
