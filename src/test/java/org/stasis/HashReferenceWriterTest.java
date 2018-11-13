@@ -39,7 +39,7 @@ public class HashReferenceWriterTest {
         int ref2 = writer.referenceFor(obj2);
         Assert.assertEquals("reference found", 0, ref2);
     }
-    
+
     @Test(expected = IllegalStateException.class)
     public void usingWriterAfterCloseIsIllegal() {
         writer.close();

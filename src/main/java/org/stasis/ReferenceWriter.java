@@ -8,11 +8,11 @@ public interface ReferenceWriter {
     int referenceFor(Object object);
 
     /**
-     * Register object to this writer. After registering object,
-     * referenceFor(object) returns a reference for this object.
+     * Register object to this writer. After registering object, referenceFor(object) returns a reference for this
+     * object.
      */
     void registerObject(Object object);
-    
+
     /**
      * Close this writer to free up reserved resources.
      * 

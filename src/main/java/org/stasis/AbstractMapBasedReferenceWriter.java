@@ -2,8 +2,7 @@ package org.stasis;
 
 import java.util.Map;
 
-public abstract class AbstractMapBasedReferenceWriter implements
-        ReferenceWriter {
+public abstract class AbstractMapBasedReferenceWriter implements ReferenceWriter {
 
     private final Map<Object, Integer> refs;
     private boolean open = true;

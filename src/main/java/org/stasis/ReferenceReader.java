@@ -8,8 +8,8 @@ public interface ReferenceReader {
     Object objectFor(int ref);
 
     /**
-     * Register object to this reader. After registering object,
-     * referenceFor(ref) returns an object for the appropriate reference.
+     * Register object to this reader. After registering object, referenceFor(ref) returns an object for the appropriate
+     * reference.
      */
     void registerObject(Object object);
 
